@@ -1,9 +1,9 @@
 # pickthemall
-Trading tool for Tokyo Stock Exchange
-東証、プライムの値動きを見て、デイトレをしようとするチャレンジコードです。[目指せデイトレ](https://note.com/preview/n5e67416d0222?prev_access_key=fafba2e84d6760eb69fd690f4d91ecb1) で解説しているコード本体です。
+Trading tool for Tokyo Stock Exchange<br>
+東証、プライムの値動きを見て、デイトレをしようとするチャレンジコードです。[目指せデイトレ](https://note.com/samuraieng/n/n5e67416d0222) で解説しているコード本体です。
 
 ## 関連リンク
-- [目指せデイトレ (note記事)](https://note.com/preview/n5e67416d0222?prev_access_key=fafba2e84d6760eb69fd690f4d91ecb1)
+- [目指せデイトレ (note記事)](https://note.com/samuraieng/n/n5e67416d0222)
 - [blogspot 投稿](https://cdevguy.blogspot.com/)
 - [x 投稿](https://x.com/pickthemall)
 
