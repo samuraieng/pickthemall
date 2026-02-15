@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from tqdm import tqdm
 
 from stock_code_tse.stock_code_tse import Stock_Code_TSE
+from tse_logics.tse_logics import TSE_logics
 
 class StockAnalyzer:
     def __init__(self, args):
@@ -31,10 +32,13 @@ class StockAnalyzer:
         self.X_summary = "" #銘柄個別の詳細
         self.X_total = ""   #総合計
 
+        self.codes = []
+
         #Get stock code from TSE
         self.sctse = Stock_Code_TSE(self.args)
-        #self.codeT = self.sctse.get_tse_prime_codes()
         self.codeT = self.sctse.get_volume_topX()
+
+        self.flags = TSE_logics(self)
 
     def dPrint(self, bFlag, inText, eCode=None):
         if bFlag:
@@ -55,7 +59,7 @@ class StockAnalyzer:
         self.dPrint(self.bDprint, f"\n---Period {self.code} {self.name}---")
         # DataFrame に変換
         df_period = pd.DataFrame(self.period_summary)
-        self.dPrint(self.bDprint, df_period[df_period['match3'] | df_period['match5'] | df_period['match7']].to_string(index=False))
+        self.dPrint(self.bDprint, df_period[df_period['Match3'] | df_period['Match5'] | df_period['Match7']].to_string(index=False))
         
         return True
 
@@ -69,29 +73,28 @@ class StockAnalyzer:
         row['code'] = self.code
 
         df_period = pd.DataFrame(self.period_summary)
-        df_period["diff"] = df_period["diff"].astype(float)
+        df_period["Diff"] = df_period["Diff"].astype(float)
 
         for Y in self.y_window:
-            #row[f'tret{Y}'] = df_period[df_period[f"match{Y}"]]["diff"].sum()
-            tmp = df_period[f'treturn{Y}'].iloc[-1]
-            row[f'tret{Y}'] = f"{float(tmp):.1f}"
-            self.dPrint(False, f"tret{Y}: {row[f'tret{Y}']}")
-            row[f'winCnt{Y}']  = (df_period[f"winlose{Y}"] == "WIN").sum()
-            row[f'loseCnt{Y}']  = (df_period[f"winlose{Y}"] == "LOSE").sum()
+            tmp = df_period[f'TReturn{Y}'].iloc[-1]
+            row[f'TRet{Y}'] = f"{float(tmp):.1f}"
+            self.dPrint(False, f"TRet{Y}: {row[f'TRet{Y}']}")
+            row[f'WinCnt{Y}']  = (df_period[f"WinLose{Y}"] == "WIN").sum()
+            row[f'LoseCnt{Y}']  = (df_period[f"WinLose{Y}"] == "LOSE").sum()
 
             try:
-                row[f'wlrate{Y}'] = float(f"{(float(row[f'winCnt{Y}']) / float(row[f'winCnt{Y}'] + row[f'loseCnt{Y}'])):.2f}")
+                row[f'Wlrate{Y}'] = float(f"{(float(row[f'WinCnt{Y}']) / float(row[f'WinCnt{Y}'] + row[f'LoseCnt{Y}'])):.2f}")
             except:
-                row[f'wlrate{Y}'] = float(0)
+                row[f'Wlrate{Y}'] = float(0)
 
         # for matchA
-        row[f'tretA'] = float(row['tret3']) + float(row['tret5']) + float(row['tret7'])
-        row[f'winCntA']  = row['winCnt3'] + row['winCnt5'] + row['winCnt7']
-        row[f'loseCntA'] = row['loseCnt3'] + row['loseCnt5'] + row['loseCnt7']
+        row[f'TRetA'] = float(row['TRet3']) + float(row['TRet5']) + float(row['TRet7'])
+        row[f'WinCntA']  = row['WinCnt3'] + row['WinCnt5'] + row['WinCnt7']
+        row[f'LoseCntA'] = row['LoseCnt3'] + row['LoseCnt5'] + row['LoseCnt7']
         try:
-            row[f'wlrateA'] = float(f"{(float(row[f'winCntA']) / float(row[f'winCntA'] + row[f'loseCntA'])):.2f}")
+            row[f'WLRateA'] = float(f"{(float(row[f'WinCntA']) / float(row[f'WinCntA'] + row[f'LoseCntA'])):.2f}")
         except:
-            row[f'wlrateA'] = float(0)
+            row[f'WLRateA'] = float(0)
 
         self.total_summary.append(row.copy())
 
@@ -111,7 +114,7 @@ class StockAnalyzer:
         for row in self.summary_dict:
             ticker = row["ticker"]
             name = row["name"]
-            df = row["rPeriod"]
+            df = row["Period"]
 
             # ticker / name を period_summary 側にくっつける
             df2 = pd.DataFrame(df).copy()
@@ -124,24 +127,34 @@ class StockAnalyzer:
         merged = pd.concat(all_rows, ignore_index=True)
 
         # 日付で sort（必要なら to_datetime して）
-        merged["date"] = pd.to_datetime(merged["date"])
-        merged = merged.sort_values("date")
+        merged["Date"] = pd.to_datetime(merged["Date"])
+        merged = merged.sort_values("Date")
 
         # ---- ここが重要 ----
         # 表示順を「ticker, name → period_summaryの列」にする
-        cols = ["date", "ticker", "name"] + [c for c in merged.columns 
-                                            if c not in ("date", "ticker", "name")]
+        cols = ["Date", "ticker", "name"] + [c for c in merged.columns 
+                                            if c not in ("Date", "ticker", "name")]
         merged = merged[cols]
-        cond = ((merged["match3"]) | (merged["match5"]) | (merged["match7"]) | 
-                 merged["winlose3"].isin(["WIN", "LOSE"]) |
-                 merged["winlose5"].isin(["WIN", "LOSE"]) |
-                 merged["winlose7"].isin(["WIN", "LOSE"]))
+        cond = ((merged["Match3"]) | (merged["Match5"]) | (merged["Match7"]) | 
+                 merged["WinLose3"].isin(["WIN", "LOSE"]) |
+                 merged["WinLose5"].isin(["WIN", "LOSE"]) |
+                 merged["WinLose7"].isin(["WIN", "LOSE"]))
                
         self.dPrint(self.bDprint, "\n--- Print Sum Format1")
 
-        outText = merged[cond].to_string(index=False)
+        df_out = merged[cond]                     #nani日付順に履歴を保存
+        outText = df_out.to_string(index=False)
         self.dPrint(self.bDprint, outText)
         self.X_history = outText
+
+        df_out = df_out.sort_values(by=['WinRate3', 'Date'], ascending=[False, True]).reset_index(drop=True)
+        self.codes = [c.split(".")[0] for c in df_out["ticker"].unique().tolist()]
+
+        bOriginal = self.bDprint
+        self.bDprint = True
+        self.dPrint(self.bDprint, "\n codes")
+        self.dPrint(self.bDprint, self.codes)
+        self.bDprint = bOriginal
 
         return True
 
@@ -149,18 +162,18 @@ class StockAnalyzer:
 
         self.dPrint(self.bDprint, "\n\n---Total Returns---")
         df = pd.DataFrame(self.total_summary)
-        # tretAの大きい順にソート
-        df = df.sort_values(by="tretA", ascending=False)
+        #TRetAの大きい順にソート
+        df = df.sort_values(by="TRetA", ascending=False)
         outText = df.to_string(index=False)
         self.X_summary = outText
         self.dPrint(self.bDprint, self.X_summary)
 
         # --- 合計の合計 ---
         tsum = {}
-        tsum['Rule3'] = pd.to_numeric(df['tret3'], errors='coerce').sum()
-        tsum['Rule5'] = pd.to_numeric(df['tret5'], errors='coerce').sum()
-        tsum['Rule7'] = pd.to_numeric(df['tret7'], errors='coerce').sum()
-        tsum['RuleA'] = pd.to_numeric(df['tretA'], errors='coerce').sum()
+        tsum['Rule3'] = pd.to_numeric(df['TRet3'], errors='coerce').sum()
+        tsum['Rule5'] = pd.to_numeric(df['TRet5'], errors='coerce').sum()
+        tsum['Rule7'] = pd.to_numeric(df['TRet7'], errors='coerce').sum()
+        tsum['RuleA'] = pd.to_numeric(df['TRetA'], errors='coerce').sum()
 
         self.dPrint(self.bDprint, "\n---Total Return Sum---")
         df = pd.DataFrame([tsum])
@@ -174,21 +187,22 @@ class StockAnalyzer:
         df = pd.DataFrame(self.single_dict)
 
         self.dPrint(self.bDprint, f"\n---Single Day {bShort} ---")
+
         if bShort:
-            showCols = ['code', 'date', 'close', 'diff', 'match3', 'treturn3', 'winrate3', 'match5', 'treturn5', 'winrate5', 'match7', 'treturn7', 'winrate7']
+            showCols = ['code', 'Date', 'Close', 'Diff', 'Match3', 'TReturn3', 'WinRate3', 'Match5', 'TReturn5', 'WinRate5', 'Match7', 'TReturn7', 'WinRate7']
             df = df[showCols]
-            df = df[df["match3"] | df["match5"] | df["match7"]]
+            df = df[df["Match3"] | df["Match5"] | df["Match7"]]
             if df.size > 0:
                 self.X_singleS = df.to_string(index=False)
-                self.X_singleS = re.sub(r'diff', '前日比', self.X_singleS)
-                self.X_singleS = re.sub(r'match', '買い', self.X_singleS)
-                self.X_singleS = re.sub(r'treturn', '儲け', self.X_singleS)
-                self.X_singleS = re.sub(r'winrate', '勝率', self.X_singleS)
+                self.X_singleS = re.sub(r'Diff', '前日比', self.X_singleS)
+                self.X_singleS = re.sub(r'Match', '買い', self.X_singleS)
+                self.X_singleS = re.sub(r'TReturn', '儲け', self.X_singleS)
+                self.X_singleS = re.sub(r'WinRate', '勝率', self.X_singleS)
             else:
                 self.X_singleS = "No Data"
             outText = self.X_singleS
         else:
-            showCols = ['code', 'date', 'close', 'diff', "f1_3", "f2_3", 'match3', 'treturn3', 'winrate3', "f1_5", "f2_5", 'match5', 'treturn5', 'winrate5', "f1_7", "f2_7", 'match7', 'treturn7', 'winrate7']
+            showCols = ['code', 'Date', 'Close', 'Diff', "F1_3", "F2_3", 'Match3', 'TReturn3', 'WinRate3', "F1_5", "F2_5", 'Match5', 'TReturn5', 'WinRate5', "F1_7", "F2_7", 'Match7', 'TReturn7', 'WinRate7']
             df = df[showCols]
             self.X_singleL = df.to_string(index=False)
             outText = self.X_singleL
@@ -209,6 +223,8 @@ class StockAnalyzer:
         self.ticker = yf.Ticker(self.code)
 
         df = self.ticker.history(period=period, interval="1d")
+
+        # ★ ここが重要：index を tz-naive のまま日付正規化
         df.index = pd.to_datetime(df.index).normalize()
 
         self.df = df
@@ -217,75 +233,10 @@ class StockAnalyzer:
         self.df = self.df.sort_index()
         self.df = self.df[~self.df.index.duplicated(keep="last")]
 
-        self.df["diff"] = self.df["Close"] - self.df["Open"]
+        self.df["Diff"] = self.df["Close"] - self.df["Open"]
         info = self.ticker.get_info()
         self.name = info.get("longName", self.code)
 
-    # --- フラグ1: 上り調子判定 ---
-    def check_flag1(self, end_date, trend_days):
-        '''
-        移動平均を求めるコード
-        旧コード
-        for p in moving_window:   #移動平均間隔 (x日)
-            df[f'MA{p}'] = df['Diff'].rolling(window=p).mean()
-            df[f'Is_Uptrend{p}'] = df[f'MA{p}'].diff() > 0    #p日移動平均が上昇 = Is_Uptrend{p}
-        '''
-
-        self.dPrint(False, f"trend_days in F1: {trend_days}")
-
-        idx = self.df.index.get_loc(end_date)
-
-        # ma を計算するために最低 trend_days + 15 本必要
-        need = trend_days + 15
-        if idx < need: 
-            return False
-
-        # 必要な範囲を切り出す
-        recent = self.df.iloc[idx-need:idx+1]["Close"]
-        # ma を計算
-        ma = recent.rolling(window=trend_days).mean().dropna()
-        
-        ## 直近 trend_days の ma を取り出す
-        ma_recent = ma.tail(trend_days)
-        diffs = ma_recent.diff().dropna()
-        cUp = (diffs > 0).sum()
-        cDw = (diffs <= 0).sum()
-        if cUp > 0 and cDw > 0:
-            ratio = cUp / (cDw + cUp)     #割合を出す
-        else:
-            ratio = 0
-        
-        retval = True if ratio > 1/2 else False
-        retval = (diffs > 0).all()   #ma on each day must be higher than previous days
-
-        self.dPrint(False, f"trend: {trend_days}, ma_r: {ma_recent}, retval: {retval}")
-
-        return retval
-
-    # --- フラグ2: 過去y_window日間のdiffチェック ---
-    def check_flag2(self, end_date, Y):
-        '''
-            "-", "-", "+" 直近が"+"で、その前連続して"-"をチェック
-        '''
-        self.dPrint(False, f"\nThis turn's enddate(window {Y}): {end_date}")
-        if self.df is None:
-            raise ValueError("Call load() first")
-
-        idx = self.df.index.get_loc(end_date)
-        last_idx = len(self.df.index) - 1       #for debug.
-
-        # 最新の情報を処理する(TRUE)、昨日以前(False)
-        retval = False
-        # End_date-1がプラス
-        prev1 = self.df.iloc[idx:idx+1]
-        if prev1["diff"].min() > 0:                     #一番最新(end_date)がプラスであり、
-            # End_date-2 から Y 日間が全部マイナス
-            start_idx = idx - Y + 1
-            if start_idx >= 0:
-                window = self.df.iloc[start_idx:idx]    #end_date-1 から Y 日間を確保
-                retval = True if window["diff"].max() <= 0 else False
-
-        return retval
 
     # --- 単日評価 ---
     def evaluate(self, check_date, y_window=None, trend_days=None):
@@ -307,25 +258,28 @@ class StockAnalyzer:
             self.fTODAY = True #end_dateで引っ掛けられない = 最新の日付(=TODAYと命名)
         self.yidx = self.yidx - 1
 
-        f1 = self.check_flag1(check_date, trend_days)
-        f2 = self.check_flag2(check_date, y_window)
+        _, f1, f2 = self.flags.get_flag_TrendMA_TrendMMP(check_date, trend_days, y_window)
 
         result = None
         row = self.df.loc[check_date]
 
         if f1 and f2:
-            strWinLose = "WIN" if row["diff"] > 0 else "LOSE"
+            strWinLose = "WIN" if row["Diff"] > 0 else "LOSE"
         else:
             strWinLose = "NA"
 
         result = {
-            "date": str(check_date.date()),
-            "diff": f"{row['diff']:3.1f}",
-            "close": f"{row['Close']:3.1f}",
-            f"f1_{y_window}": bool(f1),
-            f"f2_{y_window}": bool(f2),
-            f"match{y_window}": bool(f1 and f2),
-            f"winlose{y_window}":strWinLose
+            "Date": str(check_date.date()),
+            "Diff": f"{row['Diff']:3.1f}",
+            "Open": f"{row['Open']:3.1f}",
+            "High": f"{row['High']:3.1f}",
+            "Low": f"{row['Low']:3.1f}",
+            "Close": f"{row['Close']:3.1f}",
+            "Volume": f"{row['Volume']:3.1f}",
+            f"F1_{y_window}": bool(f1),
+            f"F2_{y_window}": bool(f2),
+            f"Match{y_window}": bool(f1 and f2),
+            f"WinLose{y_window}":strWinLose
         }
 
         self.dPrint(bDprint, f'In Eva: {result}')
@@ -342,18 +296,18 @@ class StockAnalyzer:
 
         if False:
             row_dict = {}
-            row_dict['date'] = row_last['date']
-            row_dict['close'] = row_last['close']
-            row_dict['diff'] = row_last['diff']
+            row_dict['Date'] = row_last['Date']
+            row_dict['Close'] = row_last['Close']
+            row_dict['Diff'] = row_last['Diff']
             for ydx in self.y_window:
-                row_dict[f"f1_{ydx}"] = row_last[f"f1_{ydx}"]      
-                row_dict[f"f2_{ydx}"] = row_last[f"f2_{ydx}"]
-                row_dict[f"match{ydx}"] = row_last[f"match{ydx}"]
-                row_dict[f"winlose{ydx}"] = row_last[f"winlose{ydx}"]
-                row_dict[f'treturn{ydx}'] = row_last[f'treturn{ydx}']
-                row_dict[f'win{ydx}'] = row_last[f'win{ydx}']
-                row_dict[f'lose{ydx}'] = row_last[f'lose{ydx}']
-                row_dict[f'winrate{ydx}'] = row_last[f'winrate{ydx}']
+                row_dict[f"F1_{ydx}"] = row_last[f"F1_{ydx}"]      
+                row_dict[f"F2_{ydx}"] = row_last[f"F2_{ydx}"]
+                row_dict[f"Match{ydx}"] = row_last[f"Match{ydx}"]
+                row_dict[f"WinLose{ydx}"] = row_last[f"WinLose{ydx}"]
+                row_dict[f'TReturn{ydx}'] = row_last[f'TReturn{ydx}']
+                row_dict[f'Win{ydx}'] = row_last[f'Win{ydx}']
+                row_dict[f'Lose{ydx}'] = row_last[f'Lose{ydx}']
+                row_dict[f'WinRate{ydx}'] = row_last[f'WinRate{ydx}']
 
         single = {'code': self.code, **row_dict}
         self.single_dict.append(single.copy())
@@ -414,17 +368,21 @@ class StockAnalyzer:
         results = []
         row_dict = {}
         for ydx in y_window:
-            row_dict['date'] = None
-            row_dict['close'] = float(0)
-            row_dict['diff'] = float(0)
-            row_dict[f"f1_{ydx}"] = None     
-            row_dict[f"f2_{ydx}"] = None
-            row_dict[f"match{ydx}"] = None
-            row_dict[f"winlose{ydx}"] = ""
-            row_dict[f'treturn{ydx}'] = f"{float(0):.2f}"
-            row_dict[f'win{ydx}'] = int(0)
-            row_dict[f'lose{ydx}'] = int(0)
-            row_dict[f'winrate{ydx}'] = float(0)
+            row_dict['Date'] = None
+            row_dict['Open'] = float(0)
+            row_dict['High'] = float(0)
+            row_dict['Low'] = float(0)
+            row_dict['Close'] = float(0)
+            row_dict['Diff'] = float(0)
+            row_dict['Volume'] = float(0)
+            row_dict[f"F1_{ydx}"] = None     
+            row_dict[f"F2_{ydx}"] = None
+            row_dict[f"Match{ydx}"] = None
+            row_dict[f"WinLose{ydx}"] = ""
+            row_dict[f'TReturn{ydx}'] = f"{float(0):.2f}"
+            row_dict[f'Win{ydx}'] = int(0)
+            row_dict[f'Lose{ydx}'] = int(0)
+            row_dict[f'WinRate{ydx}'] = float(0)
 
         for idx in df_slice.index:
             for ii, ydx in enumerate(y_window):
@@ -433,37 +391,42 @@ class StockAnalyzer:
                 trend_days = self.trend_days[ii]
                 r = self.evaluate(idx, ydx, trend_days)
 
-                if row_dict['date'] != r['date']:
-                    row_dict['date'] = r['date']
-                    row_dict['close'] = r['close']
-                    row_dict['diff'] = r['diff']
-                row_dict[f"f1_{ydx}"] = r[f"f1_{ydx}"]     
-                row_dict[f"f2_{ydx}"] = r[f"f2_{ydx}"]
-                row_dict[f"match{ydx}"] = r[f"match{ydx}"]
-                row_dict[f"winlose{ydx}"] = "NA"
+                if row_dict['Date'] != r['Date']:
+                    row_dict['Date'] = r['Date']
+                    row_dict['Open'] = r['Open']
+                    row_dict['High'] = r['High']
+                    row_dict['Low'] = r['Low']
+                    row_dict['Close'] = r['Close']
+                    row_dict['Diff'] = r['Diff']
+                    row_dict['Volume'] = r['Volume']
+                row_dict[f"F1_{ydx}"] = r[f"F1_{ydx}"]     
+                row_dict[f"F2_{ydx}"] = r[f"F2_{ydx}"]
+                row_dict[f"Match{ydx}"] = r[f"Match{ydx}"]
+                row_dict[f"WinLose{ydx}"] = "NA"
 
                 # diff は常にその日の値
-                diff = f"{float(row_dict['diff']):.2f}"
+                diff = f"{float(row_dict['Diff']):.2f}"
 
-                if pre_dict[f"match{ydx}"]:
-                    row_dict[f'treturn{ydx}'] = float(row_dict[f'treturn{ydx}']) + float(diff)  # match日だけ累積加算
+                # winloseの判定は、昨日(pre_dict)のmatchに基づき、今日(row_dict)のdiffを評価する
+                if pre_dict[f"Match{ydx}"]:
+                    row_dict[f'TReturn{ydx}'] = float(row_dict[f'TReturn{ydx}']) + float(diff)  # match日だけ累積加算
                     bJudge = True if float(diff) > 0 else False
                     if bJudge:
-                        row_dict[f'win{ydx}'] += 1
-                        row_dict[f'winlose{ydx}'] = "WIN"
+                        row_dict[f'Win{ydx}'] += 1
+                        row_dict[f'WinLose{ydx}'] = "WIN"
                     else:
-                        row_dict[f'lose{ydx}'] += 1
-                        row_dict[f'winlose{ydx}'] = "LOSE"
+                        row_dict[f'Lose{ydx}'] += 1
+                        row_dict[f'WinLose{ydx}'] = "LOSE"
 
                 try:
-                    if (row_dict[f'win{ydx}'] is not None and row_dict[f'lose{ydx}'] is not None) and (row_dict[f'win{ydx}'] + row_dict[f'lose{ydx}']) > 0:
-                        row_dict[f'winrate{ydx}'] = f"{row_dict[f'win{ydx}'] / (row_dict[f'win{ydx}'] + row_dict[f'lose{ydx}']):.2f}"
+                    if (row_dict[f'Win{ydx}'] is not None and row_dict[f'Lose{ydx}'] is not None) and (row_dict[f'Win{ydx}'] + row_dict[f'Lose{ydx}']) > 0:
+                        row_dict[f'WinRate{ydx}'] = f"{row_dict[f'Win{ydx}'] / (row_dict[f'Win{ydx}'] + row_dict[f'Lose{ydx}']):.2f}"
                     else:
-                        row_dict[f'winrate{ydx}'] = 0
+                        row_dict[f'WinRate{ydx}'] = 0
                 except:
-                    row_dict[f'win{ydx}'] = 0
-                    row_dict[f'lose{ydx}'] = 0
-                    row_dict[f'winrate{ydx}'] = 0
+                    row_dict[f'Win{ydx}'] = 0
+                    row_dict[f'Lose{ydx}'] = 0
+                    row_dict[f'WinRate{ydx}'] = 0
 
             results.append(row_dict.copy())
 
@@ -495,8 +458,8 @@ class StockAnalyzer:
             row_dict = {
                 "ticker": self.code,
                 "name": self.name,
-                "rSingle": self.single_day,
-                "rPeriod": self.period_summary
+                "Single": self.single_day,
+                "Period": self.period_summary
             }
 
             self.summary_dict.append(row_dict)

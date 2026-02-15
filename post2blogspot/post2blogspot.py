@@ -25,7 +25,9 @@ class Post2BlogSpot:
         self.build = build
 
         # Bloggerのフルアクセス権限
-        self.SCOPES = ['https://www.googleapis.com/auth/blogger']
+        self.SCOPES = [
+            'https://www.googleapis.com/auth/blogger'
+            ]
 
         self.posted = "" #URL
         self.postID = 0  #ID
@@ -95,7 +97,7 @@ class Post2BlogSpot:
         return self.postID
 
     # 既存の記事の内容を取得して、末尾に追記するイメージ
-    def append_log_to_post(self, post_id, subtitle, content):
+    def append_log_to_post_pre(self, post_id, subtitle, content):
         creds = self.get_credentials()
         service = self.build('blogger', 'v3', credentials=creds)
         
@@ -108,6 +110,29 @@ class Post2BlogSpot:
         new_content = f"""
         <h3>{subtitle}</h3>
         <pre style="overflow-x:auto; white-space:pre; max-width:100%;">{content}</pre><hr>
+        """
+        updated_content = prev_content + new_content
+        
+        # 3. 記事を更新
+        service.posts().patch(
+            blogId=self.BLOG_ID, 
+            postId=post_id, 
+            body={'content': updated_content}
+        ).execute()
+
+    def append_log_to_post(self, post_id, subtitle, content):
+        creds = self.get_credentials()
+        service = self.build('blogger', 'v3', credentials=creds)
+        
+        # 1. 現在の記事内容を取得
+        current_post = service.posts().get(blogId=self.BLOG_ID, postId=post_id).execute()
+        prev_content = current_post.get('content', '')
+        
+        # 2. 新しい章（ログ）を作成（HTMLで整形）
+        # <h3>などで章立てすると見やすくなります
+        new_content = f"""
+        <h3>{subtitle}</h3>
+        {content}
         """
         updated_content = prev_content + new_content
         

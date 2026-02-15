@@ -14,7 +14,7 @@ Trading tool for Tokyo Stock Exchange<br>
 
 ```bash
 $ python3 ./pickthemall.py --help
-usage: pickthemall.py [-h] [--s2b] [--s2x] [--topx TOPX]
+usage: pickthemall.py [-h] [--s2b] [--s2x] [--topx TOPX] [--code CODE]
 
 pickthemall, calculate some stock information
 
@@ -25,6 +25,7 @@ options:
   --s2x, --send2X       Enable to send to X
   --topx TOPX, --topX TOPX
                         Number of top stocks to get
+  --code CODE           TSE Code without .T
 ```
 
 ## インストール
@@ -44,18 +45,16 @@ cloneしたファイル以外にも、pickthemall_oauth.jsonが必要。
 - tse_vol_topX.txt
 
 ```bash
+├── analyze_wgraph
+│   ├── analyze_wgraph.py
+│   └── __init__.py
 ├── LICENSE
-├── pickthemall_oauth.json
 ├── pickthemall.py
-├── pickthemall_token.json
 ├── post2blogspot
 │   ├── __init__.py
 │   └── post2blogspot.py
 ├── post2x
 │   ├── __init__.py
-│   ├── post2blogspot
-│   │   ├── __init__.py
-│   │   └── post2blogspot.py
 │   └── post2x.py
 ├── README.md
 ├── requirements.txt
@@ -65,8 +64,9 @@ cloneしたファイル以外にも、pickthemall_oauth.jsonが必要。
 ├── stock_code_tse
 │   ├── __init__.py
 │   └── stock_code_tse.py
-├── tse_codes.txt
-└── tse_vol_topX.txt
+└── tse_logics
+    ├── __init__.py
+    └── tse_logics.py
 ```
 
 **各種自動投稿について (oauth.jsonなど)**
@@ -80,10 +80,12 @@ X.comへの投稿も同じ。自動投稿するための儀式があるので、
 |ファイル名|説明|
 |---|---|
 |pickthemall.py|メインファイル|
+|analyze_wgraph.py|グラフ描画用ファイル|
 |post2blogspot.py|blogspot投稿用ファイル|
 |post2x.py|X.com投稿用ファイル|
 |stock_analyzer.py|株式分析用ファイル|
 |stock_code_tse.py|東証コード取得用ファイル|
+|tse_logics.py|相場判定ロジック用ファイル|
 |tse_codes.txt|東証コード一覧 (自動生成)|
 |tse_vol_topX.txt|東証取引量上位一覧 (自動生成)|
 
